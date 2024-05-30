@@ -81,8 +81,8 @@ func (db DB) pgError(err error) error {
 func (D *DB) UpdateProducts(ctx context.Context, p inventory.UpdateProductParams) error {
 	q := `update product set 
                    name = COALESCE($1,"name"),
-                   description = COALESCE($1,"description"),
-                   price = COALESCE($1,"price"),
+                   description = COALESCE($2,"description"),
+                   price = COALESCE($3,"price"),
                    modified_at = now() 
 where id =$4`
 
@@ -159,7 +159,7 @@ func (D *DB) SearchProducts(ctx context.Context, p inventory.SearchProductsParam
 
 	args := []any{"%" + p.QueryString + "%"}
 
-	w := []string{"name like $1"}
+	w := []string{"name LIKE $1"}
 
 	//:::CHECK MIN PRICE
 	if p.MinPrice != 0 {
@@ -176,7 +176,7 @@ func (D *DB) SearchProducts(ctx context.Context, p inventory.SearchProductsParam
 	where := strings.Join(w, " AND ")
 	q := fmt.Sprintf(`SELECT COUNT(*) as total from "product" where %s `, where)
 	var resp = inventory.SearchProductResponse{Items: []*inventory.Product{}}
-	switch err := D.conn(ctx).QueryRow(ctx, q, args...).Scan(&resp); {
+	switch err := D.conn(ctx).QueryRow(ctx, q, args...).Scan(&resp.Total); {
 	case errors.As(err, context.Canceled), errors.As(err, context.DeadlineExceeded):
 		return nil, nil
 	case err != nil:
@@ -185,7 +185,7 @@ func (D *DB) SearchProducts(ctx context.Context, p inventory.SearchProductsParam
 	}
 
 	//	GET RESULT
-	sql := `SELECT *  from "product" where %s DESC`
+	sql := fmt.Sprintf("SELECT *  from product where %s ORDER BY \"id\" DESC", where)
 
 	//	::::CHECK OFFSSET
 

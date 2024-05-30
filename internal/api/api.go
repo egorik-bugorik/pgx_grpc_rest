@@ -42,8 +42,10 @@ func (s *Server) Run(ctx context.Context) error {
 
 	ctx, cancel := context.WithCancel(ctx)
 	//:::: error channel for starting server
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 1)
 
+	s.httpServer = &httpServer{inventory: s.Service}
+	s.grpcServer = &grpcServer{inventory: s.Service}
 	//::: start goroutine SERVER (http,grps)
 
 	go func() {
@@ -54,14 +56,14 @@ func (s *Server) Run(ctx context.Context) error {
 		errCh <- err
 
 	}()
-	go func() {
-		err := s.grpcServer.Run(ctx, s.GRPCaddr)
-		if err != nil {
-			err = fmt.Errorf(" grpc Server finished with error :::%w ", err)
-		}
-		errCh <- err
-
-	}()
+	//go func() {
+	//	err := s.grpcServer.Run(ctx, s.GRPCaddr)
+	//	if err != nil {
+	//		err = fmt.Errorf(" grpc Server finished with error :::%w ", err)
+	//	}
+	//	errCh <- err
+	//
+	//}()
 
 	var stringErr []string
 
@@ -107,7 +109,7 @@ func (s *httpServer) Run(ctx context.Context, addr string) error {
 }
 
 func (s *grpcServer) Run(ctx context.Context, addr string) error {
-
+	return nil
 }
 
 // :::: STOP SERVERS
