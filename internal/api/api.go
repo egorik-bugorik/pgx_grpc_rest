@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/grpc"
+	"log"
+	"net/http"
 	"rest_api_postgres_clean/internal/inventory"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -22,9 +26,14 @@ type Server struct {
 }
 
 type httpServer struct {
+	inventory  *inventory.Service
+	server     *http.Server
+	middleware func(http.Handler) http.Handler
 }
 
 type grpcServer struct {
+	inventory *inventory.Service
+	server    *grpc.Server
 }
 
 //:::: RUN SERVERS
@@ -57,7 +66,7 @@ func (s *Server) Run(ctx context.Context) error {
 	var stringErr []string
 
 	// ::: HANDLE errors
-	for i := range cap(errCh) {
+	for _ = range cap(errCh) {
 		if err := <-errCh; err != nil {
 			stringErr = append(stringErr, err.Error())
 
@@ -76,7 +85,27 @@ func (s *Server) Run(ctx context.Context) error {
 }
 func (s *httpServer) Run(ctx context.Context, addr string) error {
 
+	handler := NewHttpServer(s.inventory)
+
+	if s.middleware != nil {
+		handler = s.middleware(handler)
+	}
+
+	h := http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: time.Second * 5,
+	}
+
+	log.Printf("Server is listening on ::: %v", addr)
+
+	if err := h.ListenAndServe(); err != http.ErrServerClosed {
+		return err
+	}
+	return nil
+
 }
+
 func (s *grpcServer) Run(ctx context.Context, addr string) error {
 
 }
@@ -84,11 +113,10 @@ func (s *grpcServer) Run(ctx context.Context, addr string) error {
 // :::: STOP SERVERS
 
 func (s *Server) Shutdown(ctx context.Context) {
-
-}
-
-func (s *httpServer) Shutdown(ctx context.Context) {
-
+	s.stopFn.Do(func() {
+		s.httpServer.Shutdown(ctx)
+		s.grpcServer.Shutdown(ctx)
+	})
 }
 
 func (s *grpcServer) Shutdown(ctx context.Context) {
