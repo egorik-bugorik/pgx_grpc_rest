@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 	"log"
+	"net"
 	"net/http"
 	"rest_api_postgres_clean/internal/inventory"
 	"strings"
@@ -108,6 +110,26 @@ func (s *httpServer) Run(ctx context.Context, addr string) error {
 
 func (s *grpcServer) Run(ctx context.Context, addr string) error {
 
+	var ls net.ListenConfig
+	lis, err := ls.Listen(ctx, "tcp", addr)
+	if err != nil {
+		return fmt.Errorf("error while listen ::: ", err)
+	}
+	s.server = grpc.NewServer()
+
+	reflection.Register(s.server)
+
+	grpcInvent := InventoryGRPC{
+		inventory: s.inventory,
+	}
+
+	RegisterInventoryServer(s.server, grpcInvent)
+
+	fmt.Printf("Server lsitening on %v", addr)
+	if err := s.server.Serve(lis); err != nil {
+		return fmt.Errorf("Fail to serve : %w", err)
+	}
+	return nil
 }
 
 // :::: STOP SERVERS
