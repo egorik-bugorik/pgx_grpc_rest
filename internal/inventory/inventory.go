@@ -33,7 +33,7 @@ type SearchProductsParams struct {
 	Pagination  Pagination
 }
 type SearchProductResponse struct {
-	items []*Product
+	Items []*Product
 	Total int
 }
 type Pagination struct {

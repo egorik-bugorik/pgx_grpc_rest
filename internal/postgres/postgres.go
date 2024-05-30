@@ -12,6 +12,7 @@ import (
 	"log"
 	"rest_api_postgres_clean/internal/database"
 	"rest_api_postgres_clean/internal/inventory"
+	"strings"
 	"time"
 )
 
@@ -154,11 +155,72 @@ func (D *DB) GetProducts(ctx context.Context, id string) (*inventory.Product, er
 }
 
 func (D *DB) SearchProducts(ctx context.Context, p inventory.SearchProductsParams) (*inventory.SearchProductResponse, error) {
-	//TODO implement me
-	panic("implement me")
-}
+	//	GET COUNT
 
+	args := []any{"%" + p.QueryString + "%"}
 
+	w := []string{"name like $1"}
+
+	//:::CHECK MIN PRICE
+	if p.MinPrice != 0 {
+		args = append(args, p.MinPrice)
+		w = append(w, fmt.Sprintf("price<=$%d", len(args)))
+	}
+	//:::CHECK MAX PRICE
+
+	if p.MAxPice != 0 {
+		args = append(args, p.MAxPice)
+		w = append(w, fmt.Sprintf("price>=$%d", len(args)))
+	}
+
+	where := strings.Join(w, " AND ")
+	q := fmt.Sprintf(`SELECT COUNT(*) as total from "product" where %s `, where)
+	var resp = inventory.SearchProductResponse{Items: []*inventory.Product{}}
+	switch err := D.conn(ctx).QueryRow(ctx, q, args...).Scan(&resp); {
+	case errors.As(err, context.Canceled), errors.As(err, context.DeadlineExceeded):
+		return nil, nil
+	case err != nil:
+		log.Println("Error whilr searching products ::: ", err)
+		return nil, errors.New("error while searching products")
+	}
+
+	//	GET RESULT
+	sql := `SELECT *  from "product" where %s DESC`
+
+	//	::::CHECK OFFSSET
+
+	if p.Pagination.Offset != 0 {
+		args = append(args, p.Pagination.Offset)
+		sql += fmt.Sprintf("OFFSET $%d", len(args))
+
+	}
+	//	::::CHECK LIMIT
+	if p.Pagination.Limit != 0 {
+		args = append(args, p.Pagination.Limit)
+		sql += fmt.Sprintf("LIMIT $%d", len(args))
+
+	}
+
+	query, err := D.conn(ctx).Query(ctx, sql, args...)
+	if errors.As(err, context.Canceled) || errors.As(err, context.DeadlineExceeded) {
+		return nil, err
+	}
+
+	var prods []product
+	if err == nil {
+		prods, err = pgx.CollectRows(query, pgx.RowToStructByPos[product])
+	}
+
+	if err != nil {
+		log.Printf("cannot saerch product from database: %v\n", err)
+		return nil, errors.New("cannot search product from database")
+	}
+
+	for _, prod := range prods {
+		resp.Items = append(resp.Items, prod.dto())
+
+	}
+	return &resp, nil
 }
 
 func NewDb(pool *pgxpool.Pool) DB {
@@ -167,4 +229,4 @@ func NewDb(pool *pgxpool.Pool) DB {
 	}
 }
 
-var _ inventory.DB = *DB{}
+var _ inventory.DB = &DB{}
