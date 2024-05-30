@@ -6,6 +6,10 @@ type Service struct {
 	DB DB
 }
 
+func NewService(db DB) *Service {
+	return &Service{DB: db}
+}
+
 type DB interface {
 	CreateProducts(ctx context.Context, p CreateProductParams) error
 	UpdateProducts(ctx context.Context, p UpdateProductParams) error

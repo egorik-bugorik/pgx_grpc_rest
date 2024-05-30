@@ -223,8 +223,8 @@ func (D *DB) SearchProducts(ctx context.Context, p inventory.SearchProductsParam
 	return &resp, nil
 }
 
-func NewDb(pool *pgxpool.Pool) DB {
-	return DB{
+func NewDb(pool *pgxpool.Pool) *DB {
+	return &DB{
 		pool: pool,
 	}
 }
